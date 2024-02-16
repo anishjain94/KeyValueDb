@@ -17,30 +17,27 @@ func main() {
 
 	for {
 
-		fmt.Println("inside for")
-
 		conn, err := l.Accept()
 		handleErr(err)
-		// defer conn.Close()
+		defer conn.Close()
 
 		b := make([]byte, 1024)
 		n, err := conn.Read(b)
 		handleErr(err)
-		fmt.Println("number of bytes read", n)
+
+		log.Printf("received %d bytes", n)
+		log.Printf("received the following data: %s", string(b[:n]))
 
 		str := string(b)
-		fmt.Println(str)
-		count := strings.Count("PING", str)
+		count := strings.Count("ping", str)
 
 		var output string
 		for i := 0; i < count; i++ {
 			output += "+PONG\r\n"
 		}
 
-		n, err = conn.Write([]byte(output))
+		_, err = conn.Write([]byte(output))
 		handleErr(err)
-
-		log.Printf("received %d bytes", n)
 	}
 
 }
