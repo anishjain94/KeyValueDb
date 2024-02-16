@@ -19,7 +19,6 @@ func main() {
 
 		conn, err := l.Accept()
 		handleErr(err)
-		defer conn.Close()
 
 		b := make([]byte, 1024)
 		n, err := conn.Read(b)
