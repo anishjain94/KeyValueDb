@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"net"
 	"os"
 )
@@ -14,26 +13,30 @@ func main() {
 	handleErr(err)
 	defer l.Close()
 
-	conn, err := l.Accept()
-	handleErr(err)
-	b := make([]byte, 1024)
-
 	for {
-		n, err := conn.Read(b)
+		conn, err := l.Accept()
 		handleErr(err)
 
-		log.Printf("received %d bytes", n)
-		log.Printf("received the following data: %s", string(b[:n]))
-
-		// go func() {
-
-		output := "+PONG\r\n"
-
-		_, err = conn.Write([]byte(output))
-		handleErr(err)
-		// }()
+		go processConn(conn)
 	}
 
+}
+
+func processConn(conn net.Conn) {
+	buf := make([]byte, 1024)
+
+	for {
+		_, err := conn.Read(buf)
+		if err != nil {
+			break
+		}
+		_, err = conn.Write([]byte("+PONG\r\n"))
+		if err != nil {
+			fmt.Println("Error responding to connection: ", err.Error())
+			os.Exit(1)
+		}
+
+	}
 }
 
 func handleErr(err error) {
