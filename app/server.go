@@ -5,7 +5,6 @@ import (
 	"log"
 	"net"
 	"os"
-	"strings"
 )
 
 func main() {
@@ -15,28 +14,24 @@ func main() {
 	handleErr(err)
 	defer l.Close()
 
+	conn, err := l.Accept()
+	handleErr(err)
+	b := make([]byte, 1024)
+
 	for {
-
-		conn, err := l.Accept()
-		handleErr(err)
-
-		b := make([]byte, 1024)
 		n, err := conn.Read(b)
 		handleErr(err)
 
 		log.Printf("received %d bytes", n)
 		log.Printf("received the following data: %s", string(b[:n]))
 
-		str := string(b)
-		count := strings.Count("ping", str)
+		// go func() {
 
-		var output string
-		for i := 0; i < count; i++ {
-			output += "+PONG\r\n"
-		}
+		output := "+PONG\r\n"
 
 		_, err = conn.Write([]byte(output))
 		handleErr(err)
+		// }()
 	}
 
 }
