@@ -34,53 +34,59 @@ func processConn(conn net.Conn) {
 		}
 
 		fmt.Println(string(buf[:read]))
+		cmds, err := parseCommand(buf[:read])
+		handleErr(err)
 
-		cms := parseCommand(string(buf[:read]))
-
-		respond(conn, cms)
+		respond(conn, cmds)
 
 	}
 }
 
-func respond(conn net.Conn, cmds []string) {
+func respond(conn net.Conn, commands RedisCommand) {
 
-	switch strings.ToLower(cmds[0]) {
+	switch strings.ToLower(commands.command) {
 	case "ping":
 		conn.Write([]byte("+PONG\r\n"))
 
 	case "echo":
+		fmt.Printf("$%d\r\n%s\r\n", len(commands.args[0]), commands.args[0])
+		conn.Write([]byte(fmt.Sprintf("$%d\r\n%s\r\n", len(commands.args[0]), commands.args[0])))
 
-		if len(cmds) < 2 {
-			handleErr(fmt.Errorf("Invalid Args"))
+	case "set":
+		redis[commands.args[0]] = commands.args[1]
+		conn.Write([]byte("+OK\r\n"))
+
+	case "get":
+		if val, ok := redis[commands.args[0]]; ok {
+			conn.Write([]byte(fmt.Sprintf("$%d\r\n%s\r\n", len(val), val)))
+		} else {
+			conn.Write([]byte("$-1\r\n"))
 		}
-		fmt.Printf("$%d\r\n%s\r\n", len(cmds[1]), cmds[1])
-		conn.Write([]byte(fmt.Sprintf("$%d\r\n%s\r\n", len(cmds[1]), cmds[1])))
 
 	}
 
 }
 
-func parseCommand(str string) []string {
+func parseCommand(buffer []byte) (RedisCommand, error) {
+	input := strings.Fields(string(buffer))
+	result := RedisCommand{}
 
-	if len(str) == 0 {
-		handleErr(fmt.Errorf("empty string"))
-	}
-	splitStr := strings.Split(str, "\r\n")
-
-	numItems, err := strconv.Atoi(splitStr[0][1:])
+	argLen, err := strconv.Atoi(input[0][1:])
 	handleErr(err)
 
-	neededItems := make([]string, numItems)
-
-	index := 0
-	for _, item := range splitStr {
-
-		if len(item) > 0 && (item[0] != '$' && item[0] != '*') {
-			neededItems[index] = item
-			index++
+	result.command = strings.ToUpper(input[2])
+	if argLen <= 1 {
+		return result, nil
+	}
+	args := make([]string, 0, argLen-1)
+	for _, val := range input[4:] {
+		if !strings.HasPrefix(val, "$") && len(val) > 0 {
+			args = append(args, strings.Trim(val, " "))
 		}
 	}
-	return neededItems
+	result.args = args
+	return result, nil
+
 }
 
 func handleErr(err error) {
