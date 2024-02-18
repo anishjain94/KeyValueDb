@@ -6,6 +6,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 )
 
 func main() {
@@ -53,12 +54,32 @@ func respond(conn net.Conn, commands RedisCommand) {
 		conn.Write([]byte(fmt.Sprintf("$%d\r\n%s\r\n", len(commands.args[0]), commands.args[0])))
 
 	case "set":
-		redis[commands.args[0]] = commands.args[1]
+		redis[commands.args[0]] = RedisValues{
+			Value: commands.args[1],
+		}
 		conn.Write([]byte("+OK\r\n"))
 
+		if len(commands.args) == 4 {
+			expiry, err := strconv.Atoi(commands.args[3])
+			handleErr(err)
+
+			expiredTime := time.Now().Add(time.Duration(expiry) * time.Millisecond)
+			redis[commands.args[0]] = RedisValues{
+				Value:     commands.args[1],
+				ExpiresAt: &expiredTime,
+			}
+
+		}
+
 	case "get":
+
 		if val, ok := redis[commands.args[0]]; ok {
-			conn.Write([]byte(fmt.Sprintf("$%d\r\n%s\r\n", len(val), val)))
+
+			if val.ExpiresAt != nil && time.Now().After(*val.ExpiresAt) {
+				conn.Write([]byte("$-1\r\n"))
+			}
+
+			conn.Write([]byte(fmt.Sprintf("$%d\r\n%s\r\n", len(val.Value), val.Value)))
 		} else {
 			conn.Write([]byte("$-1\r\n"))
 		}
