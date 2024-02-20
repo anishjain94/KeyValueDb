@@ -9,6 +9,13 @@ import (
 	"time"
 )
 
+type ExpiryStruct struct {
+	Key    string
+	Expiry time.Duration
+}
+
+var expiryChannel = make(chan ExpiryStruct, 1000)
+
 func main() {
 	fmt.Println("Logs from your program will appear here!")
 
@@ -25,7 +32,24 @@ func main() {
 
 }
 
+func HandleExpiry(expiryChannel chan ExpiryStruct, redis map[string]RedisValues) {
+
+	for val := range expiryChannel {
+
+		fmt.Println(val.Key)
+		tiker := time.NewTicker(val.Expiry)
+
+		<-tiker.C
+		fmt.Println("deleting ", val.Key)
+		delete(redis, val.Key)
+		tiker.Stop()
+
+	}
+
+}
+
 func processConn(conn net.Conn) {
+	go HandleExpiry(expiryChannel, redis)
 	buf := make([]byte, 1024)
 
 	for {
@@ -63,11 +87,11 @@ func respond(conn net.Conn, commands RedisCommand) {
 			expiry, err := strconv.Atoi(commands.args[3])
 			handleErr(err)
 
-			expiredTime := time.Now().Add(time.Duration(expiry) * time.Millisecond)
 			redis[commands.args[0]] = RedisValues{
-				Value:     commands.args[1],
-				ExpiresAt: &expiredTime,
+				Value: commands.args[1],
 			}
+
+			expiryChannel <- ExpiryStruct{Key: commands.args[0], Expiry: time.Duration(expiry) * time.Millisecond}
 
 		}
 
@@ -75,15 +99,10 @@ func respond(conn net.Conn, commands RedisCommand) {
 
 		if val, ok := redis[commands.args[0]]; ok {
 
-			if val.ExpiresAt != nil && time.Now().After(*val.ExpiresAt) {
-				conn.Write([]byte("$-1\r\n"))
-			}
-
 			conn.Write([]byte(fmt.Sprintf("$%d\r\n%s\r\n", len(val.Value), val.Value)))
 		} else {
 			conn.Write([]byte("$-1\r\n"))
 		}
-
 	}
 
 }
@@ -107,7 +126,6 @@ func parseCommand(buffer []byte) (RedisCommand, error) {
 	}
 	result.args = args
 	return result, nil
-
 }
 
 func handleErr(err error) {

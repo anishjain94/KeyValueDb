@@ -1,15 +1,12 @@
 package main
 
-import "time"
-
 type RedisCommand struct {
 	command string
 	args    []string
 }
 
 type RedisValues struct {
-	Value     string
-	ExpiresAt *time.Time
+	Value string
 }
 
 var redis = make(map[string]RedisValues)
