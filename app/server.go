@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"net"
 	"os"
@@ -9,15 +10,13 @@ import (
 	"time"
 )
 
-type ExpiryStruct struct {
-	Key    string
-	Expiry time.Duration
-}
-
-var expiryChannel = make(chan ExpiryStruct, 1000)
-
 func main() {
 	fmt.Println("Logs from your program will appear here!")
+
+	flag.StringVar(&Dir, "dir", "", "dir value")
+	flag.StringVar(&DbFileName, "dbfilename", "", "dbname value")
+
+	flag.Parse()
 
 	l, err := net.Listen("tcp", "0.0.0.0:6379")
 	handleErr(err)
@@ -32,25 +31,9 @@ func main() {
 
 }
 
-func HandleExpiry(expiryChannel chan ExpiryStruct, redis map[string]RedisValues) {
-
-	for val := range expiryChannel {
-
-		fmt.Println(val.Key)
-		tiker := time.NewTicker(val.Expiry)
-
-		<-tiker.C
-		fmt.Println("deleting ", val.Key)
-		delete(redis, val.Key)
-		tiker.Stop()
-
-	}
-
-}
-
 func processConn(conn net.Conn) {
 	go HandleExpiry(expiryChannel, redis)
-	buf := make([]byte, 1024)
+	buf := make([]byte, 2024)
 
 	for {
 		read, err := conn.Read(buf)
@@ -74,7 +57,6 @@ func respond(conn net.Conn, commands RedisCommand) {
 		conn.Write([]byte("+PONG\r\n"))
 
 	case "echo":
-		fmt.Printf("$%d\r\n%s\r\n", len(commands.args[0]), commands.args[0])
 		conn.Write([]byte(fmt.Sprintf("$%d\r\n%s\r\n", len(commands.args[0]), commands.args[0])))
 
 	case "set":
@@ -103,6 +85,24 @@ func respond(conn net.Conn, commands RedisCommand) {
 		} else {
 			conn.Write([]byte("$-1\r\n"))
 		}
+	case "config":
+
+		if commands.args[0] == "get" {
+			if commands.args[1] == "dir" {
+				// *2 $3 dir $16 /tmp/redis-files
+
+				// *2\r\n$3\r\ndir\r\n$16\r\n/tmp/redis-files\r\n
+
+				temp := fmt.Sprintf("*2\r\n$%d\r\n%s\r\n$%d\r\n%s\r\n", len(commands.args[1]), commands.args[1], len(Dir), Dir)
+				conn.Write([]byte(temp))
+			}
+
+			if commands.args[1] == "dbfilename" {
+				temp := fmt.Sprintf("*2\r\n$%d\r\n%s\r\n$%d\r\n%s\r\n", len(commands.args[1]), commands.args[1], len(DbFileName), DbFileName)
+				conn.Write([]byte(temp))
+			}
+		}
+
 	}
 
 }
@@ -121,7 +121,7 @@ func parseCommand(buffer []byte) (RedisCommand, error) {
 	args := make([]string, 0, argLen-1)
 	for _, val := range input[4:] {
 		if !strings.HasPrefix(val, "$") && len(val) > 0 {
-			args = append(args, strings.Trim(val, " "))
+			args = append(args, strings.ToLower(strings.Trim(val, " ")))
 		}
 	}
 	result.args = args
@@ -133,4 +133,18 @@ func handleErr(err error) {
 		fmt.Println(err.Error())
 		os.Exit(1)
 	}
+}
+
+func HandleExpiry(expiryChannel chan ExpiryStruct, redis map[string]RedisValues) {
+
+	for val := range expiryChannel {
+		tiker := time.NewTicker(val.Expiry)
+
+		<-tiker.C
+		fmt.Println("deleting ", val.Key)
+		delete(redis, val.Key)
+		tiker.Stop()
+
+	}
+
 }
