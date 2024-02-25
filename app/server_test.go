@@ -1,7 +1,9 @@
 package main
 
 import (
+	"encoding/hex"
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 	"testing"
@@ -28,4 +30,14 @@ func TestParseCommand(t *testing.T) {
 	cmd, _ := parseCommand([]byte(str))
 
 	fmt.Println(cmd)
+}
+
+func TestReadRdbFile(t *testing.T) {
+
+	file, err := os.ReadFile("../dump.rdb")
+	handleErr(err)
+
+	// dst := make([]byte, hex.DecodedLen(len(file)))
+	hx, _ := hex.DecodeString(string(file))
+	fmt.Println(string(hx))
 }

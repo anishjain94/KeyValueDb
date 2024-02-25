@@ -15,10 +15,10 @@ func main() {
 
 	flag.StringVar(&Dir, "dir", "", "dir value")
 	flag.StringVar(&DbFileName, "dbfilename", "", "dbname value")
-
+	flag.StringVar(&port, "port", "6379", "alternate port")
 	flag.Parse()
 
-	l, err := net.Listen("tcp", "0.0.0.0:6379")
+	l, err := net.Listen("tcp", "0.0.0.0:"+port)
 	handleErr(err)
 	defer l.Close()
 

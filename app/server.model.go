@@ -13,6 +13,7 @@ type RedisValues struct {
 
 var Dir string
 var DbFileName string
+var port string
 
 var redis = make(map[string]RedisValues)
 
